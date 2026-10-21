@@ -42,3 +42,43 @@ def get_article_links(author):
     except Exception as e: #если предыдущая функция не сработала
         print(f"Ошибка при получении списка статей: {e}")
         return []
+
+def main():
+    print("--- Начинаю сбор статей ---")
+    
+    # 1. Получаем ссылки
+    links = get_article_links(AUTHOR_NAME)
+    if not links:
+        print("Не удалось найти ссылки на статьи.")
+        return
+
+    print(f"Найдено ссылок: {len(links)}")
+
+    # 2. Проходимся по каждой ссылке и собираем данные
+    data = []
+    for i, link in enumerate(links):
+        title, text = get_article_text(link)
+        if text:
+            data.append({
+                'title': title,
+                'text': text,
+                'url': link
+            })
+        # Вежливая пауза, чтобы не нагружать сервер VK
+        time.sleep(1) 
+
+    # 3. Сохраняем в CSV
+    if data:
+        df = pd.DataFrame(data)
+        df = df[df['text'].str.strip() != '']
+        
+        output_file = 'vk_articles.csv'
+        df.to_csv(output_file, index=False, encoding='utf-8')
+        print(f"\nГотово! Собрано {len(df)} статей.")
+        print(f"Файл сохранен: {output_file}")
+    else:
+        print("\nНе удалось извлечь текст ни из одной статьи.")
+
+
+if __name__ == "__main__":
+    main()
