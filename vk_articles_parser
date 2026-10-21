@@ -1,0 +1,44 @@
+import requests #библиотека для чтения сайтов
+from bs4 import BeautifulSoup #для удаления html тегов
+import pandas as pd #для сохранения собранных данных в таблицу
+import time #для паузы между запросами
+import re #ищет текст по шаблонам, для предобработки, удаления чисел, пустых строк...
+
+#короткое имя автора (из ссылки vk.com/alenakogotkova)
+AUTHOR_NAME = "alenakogotkova"
+#сколько последних статей нужно собрать
+TARGET_ARTICLES = 20 
+#маскируемся, чтобы вк принимал парсер не за бота, а за пользователя
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+}
+
+#собираем ссылки на статьи через мобильную версию (m.vk.com), потому что так проще, в ней меньше мусора
+def get_article_links(author):
+    url = f"https://m.vk.com/@{author}"
+  try:
+          response = requests.get(url, headers=HEADERS) #прога переходит по ссылке под маской
+          response.raise_for_status() #проверка на ошибки HTTP
+          soup = BeautifulSoup(response.text, "lxml") #разбираем html-ко response.text с помощью парсера lxml
+
+          articles = soup.find_all("div", class_="author-page-article") #ищем превью статей в блоке div
+        
+          article_urls = [] #создаём пустой список для чистых ссылок
+          for article in articles: #берём каждый блок div и называем его article
+              #извлекаем ссылку
+              if article.name == 'a':
+                  relative_url = article.get("href")
+              else:
+                  link = article.find("a")
+                  relative_url = link.get("href")
+              
+              #формируем полный URL
+              full_url = f"https://vk.com{relative_url}"
+              #убираем лишние параметры после '?'
+              clean_url = full_url.split("?")[0]
+                  
+          return article_urls[:TARGET_ARTICLES] #возвращаем готовый список из среза из 20 ссылок
+        
+    except Exception as e: #если предыдущая функция не сработала
+        print(f"Ошибка при получении списка статей: {e}")
+        return []
