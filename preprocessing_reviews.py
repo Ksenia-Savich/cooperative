@@ -1,17 +1,24 @@
 import numpy as np
 import pandas as pd
 import re
-import string
 import nltk
-import matplotlib
-matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import seaborn as sns
+
 from collections import Counter
 from nltk.corpus import stopwords
-from nltk import word_tokenize, regexp_tokenize, FreqDist
+from nltk import regexp_tokenize, FreqDist, sent_tokenize
 from pymorphy3 import MorphAnalyzer
+from bs4 import BeautifulSoup
+
+#для моделей
+from gensim.models import Word2Vec
+from gensim.utils import simple_preprocess
+from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
+from sklearn.manifold import TSNE
 
 nltk.download("stopwords", quiet=True)
+nltk.download('punkt', quiet=True)
 
 # загрузка датасета, разделитель табуляция
 df = pd.read_csv("reviews.csv", encoding="UTF8", sep="\t")
@@ -127,3 +134,50 @@ axes[1].tick_params(axis='x', rotation=90)
 plt.tight_layout()
 plt.savefig("freq_plots.png", dpi=150)
 print("Графики сохранены в файл freq_plots.png")
+
+
+# ======= word2vec ===========
+
+# Обертка для подачи текста в Gensim
+class MySentences(object):
+    def __init__(self, docs):
+        self.corpus = docs
+    def __iter__(self):
+        for doc in self.corpus:
+            doc_sentences = sent_tokenize(doc)
+            for sent in doc_sentences:
+                yield simple_preprocess(sent) 
+
+# Берем уже лемматизированный текст для обучения
+sentences = MySentences(df['text_lemmas'].tolist())
+
+# Инициализация и обучение модели
+w2v_model = Word2Vec(
+    min_count=10,
+    window=4,
+    vector_size=300,
+    negative=10,
+    alpha=0.03,
+    min_alpha=0.0007,
+    sample=6e-5,
+    sg=1 # Используем Skip-gram
+)
+
+w2v_model.build_vocab(sentences)
+print("Обучение Word2Vec...")
+w2v_model.train(sentences, total_examples=w2v_model.corpus_count, epochs=6, report_delay=1)
+w2v_model.init_sims(replace=True) # Оптимизация памяти
+
+print(w2v_model.wv.most_similar(positive=["отличный"], topn=10))
+print(w2v_model.wv.most_similar(positive=["товар", "хороший"], topn=10))
+print(w2v_model.wv.most_similar_to_given("хороший", ["товар", "продавец", "человек", "куртка"]))
+
+# ========== Bag of Words ============
+bow_vectorizer = CountVectorizer()
+bow_model = bow_vectorizer.fit_transform(df['text_lemmas'])
+print(f"\nРазмерность матрицы Bag of Words: {bow_model.shape}")
+
+# ========== TF-IDF ==================
+tfidf_vectorizer = TfidfVectorizer()
+tfidf_model = tfidf_vectorizer.fit_transform(df['text_lemmas'])
+print(f"Размерность матрицы TF-IDF: {tfidf_model.shape}")
